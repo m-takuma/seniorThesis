@@ -1,6 +1,7 @@
 import requests
 import const
 import time
+from enum import IntEnum
 from dateutil import relativedelta
 from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
@@ -10,6 +11,25 @@ from requests.adapters import HTTPAdapter
 from edinet_api.ordinance_code import OrdinanceCode
 from edinet_api.form_code import FormCode
 from edinet_api.response_model import MetaData, Result
+import os
+from dotenv import load_dotenv
+from tqdm import tqdm
+
+class FetchDocType(IntEnum):
+    SUBMISSION_DOCUMENTS = 1
+    """提出本文書及び監査報告書"""
+    PDF = 2
+    """PDF形式"""
+    ATTACHED_DOCUMENTS = 3
+    """代替書面・添付文書"""
+    ENGLISH_DOCUMENTS = 4
+    """英文ファイル"""
+
+    @property
+    def number(self):
+        return self.value
+
+
 
 class FetchEdient:
     class DocsConfiguration:
@@ -29,6 +49,12 @@ class FetchEdient:
             self.sec_code: str = sec_code
             self.ordinance_code: OrdinanceCode = ordinance_code
             self.form_code: FormCode = form_code
+
+    load_dotenv()
+    xbrl_download_path = os.environ.get("XBRL_DOWNLOAD_PATH")
+
+    def __init__(self, xbrl_download_path: str) -> None:
+        self.xbrl_download_path = xbrl_download_path
     
     @classmethod
     def should_parse_json(cls, config: DocsConfiguration, result: Result):
@@ -39,8 +65,8 @@ class FetchEdient:
         return ordinance_code_status and form_code_status and corporate_name_status and sec_code_status
     
     @classmethod
-    def fetch_docs(cls, config = DocsConfiguration()) -> None:
-        docs_list = []
+    def fetch_docs(cls, config = DocsConfiguration()) -> list[Result]:
+        docs_list: list[Result] = []
         date_list = pd.date_range(start=config.start_date, end=config.end_date, freq="D")
         for i ,d in enumerate(map(lambda x: x.date(), date_list)):
             # アクセス制限回避
@@ -70,9 +96,38 @@ class FetchEdient:
             except Exception as err:
                 raise Exception(err)
         return docs_list
+    
+
+    @classmethod
+    def download_file(self, docID: str, type: FetchDocType):
+        url = const.EDINET_API_ENDPOINT_BASE + F"documents/{docID}"
+        params = {"type": type.number}
+        session = requests.Session()
+        retries = Retry(total=2,  # リトライ回数
+                            backoff_factor=60,  # sleep時間
+                            status_forcelist=[403])
+        session.mount("https://", HTTPAdapter(max_retries=retries))
+        try:
+            res = session.get(url, params=params, timeout=3.5)
+            res.raise_for_status()
+            filename = self.xbrl_download_path + docID + ".zip"
+            with open(filename, "wb") as file:
+                for chunk in res.iter_content(chunk_size=1024):
+                    file.write(chunk)
+        except Exception as err:
+            if res.status_code != 404:
+                raise Exception(err)
+        return
+    
+
+    @classmethod
+    def download_files(self, docs_list: list[Result], type: FetchDocType):
+        for i, doc in enumerate(tqdm(docs_list)):
+            self.download_file(doc.docID, type)
+
 
 
 if __name__ == "__main__":
     ls = FetchEdient.fetch_docs()
     print(ls)
-    
+    FetchEdient.download_files(ls, FetchDocType.SUBMISSION_DOCUMENTS)
