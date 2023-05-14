@@ -51,13 +51,13 @@ class FetchEdient:
             self.form_code: FormCode = form_code
 
     load_dotenv()
-    xbrl_download_path = os.environ.get("XBRL_DOWNLOAD_PATH")
+    __xbrl_download_path = os.environ.get("XBRL_DOWNLOAD_PATH")
 
     def __init__(self, xbrl_download_path: str) -> None:
-        self.xbrl_download_path = xbrl_download_path
+        self.__xbrl_download_path = xbrl_download_path
     
     @classmethod
-    def should_parse_json(cls, config: DocsConfiguration, result: Result):
+    def __should_parse_json(cls, config: DocsConfiguration, result: Result):
         ordinance_code_status = result.ordinanceCode == config.ordinance_code.code()
         form_code_status = result.formCode == config.form_code.code()  # noqa: E501
         corporate_name_status = (config.corporate_name == "" and result.filerName == None) or config.corporate_name in result.filerName
@@ -90,7 +90,7 @@ class FetchEdient:
                     continue
                 for num in range(0, metadata.resultset.count):
                     result = Result(**json_data["results"][num])
-                    if cls.should_parse_json(config, result):
+                    if cls.__should_parse_json(config, result):
                         docs_list.append(result)
                         print(result.filerName)
             except Exception as err:
@@ -110,7 +110,7 @@ class FetchEdient:
         try:
             res = session.get(url, params=params, timeout=3.5)
             res.raise_for_status()
-            filename = self.xbrl_download_path + docID + ".zip"
+            filename = self.__xbrl_download_path + docID + ".zip"
             with open(filename, "wb") as file:
                 for chunk in res.iter_content(chunk_size=1024):
                     file.write(chunk)
