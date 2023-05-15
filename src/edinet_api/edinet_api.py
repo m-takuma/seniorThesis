@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 class edinet:
-    class DocsConfiguration:
+    class FetchDocsConfiguration:
         def __init__(
                 self,
                 corporate_name: str = "",
@@ -53,7 +53,7 @@ class edinet:
         self.__xbrl_download_path = xbrl_download_path
     
     @classmethod
-    def __should_parse_json(cls, config: DocsConfiguration, result: Result):
+    def __should_parse_json(cls, config: FetchDocsConfiguration, result: Result):
         ordinance_code_status = result.ordinanceCode == config.ordinance_code.code()
         form_code_status = result.formCode == config.form_code.code()  # noqa: E501
         corporate_name_status = (config.corporate_name == "" and result.filerName == None) or config.corporate_name in result.filerName
@@ -61,7 +61,7 @@ class edinet:
         return ordinance_code_status and form_code_status and corporate_name_status and sec_code_status
     
     @classmethod
-    def fetch_docs(cls, config = DocsConfiguration()) -> list[Result]:
+    def fetch_docs(cls, config = FetchDocsConfiguration()) -> list[Result]:
         docs_list: list[Result] = []
         date_list = list(map(lambda x: x.date(), pd.date_range(start=config.start_date, end=config.end_date, freq="D")))
 

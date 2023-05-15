@@ -2,7 +2,7 @@ from db.db import db
 from edinet_api.response_model import Result
 from edinet_api.edinet_api import edinet
 def fetch_docs(should_cache = True) -> list[Result]:
-    config = edinet.DocsConfiguration()
+    config = edinet.FetchDocsConfiguration()
     docs = edinet.fetch_docs(config=config)
     if should_cache:
         __db = db()
