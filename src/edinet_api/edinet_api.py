@@ -1,5 +1,5 @@
 import requests
-from edinet_api import const
+import edinet_api.const as const
 import time
 from enum import IntEnum
 from dateutil import relativedelta
@@ -13,6 +13,7 @@ from edinet_api.response_model import MetaData, Result
 import os
 from dotenv import load_dotenv
 from tqdm import tqdm
+import shutil
 
 class edinet:
     class FetchDocsConfiguration:
@@ -48,9 +49,6 @@ class edinet:
 
     load_dotenv()
     __xbrl_download_path = os.environ.get("XBRL_DOWNLOAD_PATH")
-
-    def __init__(self, xbrl_download_path: str) -> None:
-        self.__xbrl_download_path = xbrl_download_path
     
     @classmethod
     def __should_parse_json(cls, config: FetchDocsConfiguration, result: Result):
@@ -95,7 +93,7 @@ class edinet:
     
 
     @classmethod
-    def download_file(self, docID: str, type: FetchDocType):
+    def download_file(cls, docID: str, type: FetchDocType):
         url = const.EDINET_API_ENDPOINT_BASE + F"documents/{docID}"
         params = {"type": type.number}
         session = requests.Session()
@@ -106,10 +104,11 @@ class edinet:
         try:
             res = session.get(url, params=params, timeout=3.5)
             res.raise_for_status()
-            filename = self.__xbrl_download_path + docID + ".zip"
+            filename = cls.__xbrl_download_path + docID + ".zip"
             with open(filename, "wb") as file:
                 for chunk in res.iter_content(chunk_size=1024):
                     file.write(chunk)
+            shutil.unpack_archive(filename, cls.__xbrl_download_path + docID)
         except Exception as err:
             if res.status_code != 404:
                 raise Exception(err)
@@ -117,8 +116,8 @@ class edinet:
     
 
     @classmethod
-    def download_files(self, docs_list: list[Result], type: FetchDocType):
+    def download_files(cls, docs_list: list[Result], type: FetchDocType):
         for _, doc in enumerate(tqdm(docs_list)):
             #アクセス制限回避
-            time.sleep(1)
-            self.download_file(doc.docID, type)
+            time.sleep(0.5)
+            cls.download_file(doc.docID, type)
