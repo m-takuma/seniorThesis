@@ -10,7 +10,6 @@ class db:
     
     def __del__(self):
         self.conn.close()
-        print("del")
     
     def __create_table(self):
         s = ('id INTEGER PRIMARY KEY AUTOINCREMENT,'
@@ -60,13 +59,6 @@ class db:
     def create_from_dict(self, kwargs: dict):
         columns = ', '.join(kwargs.keys())
         placeholders = ', '.join(f':{key}' for key in kwargs.keys())
-        query = f'INSERT INTO {const.DOCS_RESULT_TABLE_NAME} ({columns}) VALUES ({placeholders})'
+        # UNIQUE重複時は追加しない
+        query = f'INSERT OR IGNORE INTO {const.DOCS_RESULT_TABLE_NAME} ({columns}) VALUES ({placeholders})'
         self.conn.execute(query, kwargs)
-
-
-if __name__ == "__main__":
-    db_test = db()
-    print(db_test.name)
-    db_test.create(docID="E0128")
-    db_test.conn.commit()
-    del db_test

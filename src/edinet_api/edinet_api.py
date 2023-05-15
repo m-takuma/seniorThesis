@@ -14,23 +14,7 @@ import os
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-class FetchDocType(IntEnum):
-    SUBMISSION_DOCUMENTS = 1
-    """提出本文書及び監査報告書"""
-    PDF = 2
-    """PDF形式"""
-    ATTACHED_DOCUMENTS = 3
-    """代替書面・添付文書"""
-    ENGLISH_DOCUMENTS = 4
-    """英文ファイル"""
-
-    @property
-    def number(self):
-        return self.value
-
-
-
-class FetchEdient:
+class edinet:
     class DocsConfiguration:
         def __init__(
                 self,
@@ -48,6 +32,19 @@ class FetchEdient:
             self.sec_code: str = sec_code
             self.ordinance_code: OrdinanceCode = ordinance_code
             self.form_code: FormCode = form_code
+    
+    class FetchDocType(IntEnum):
+        SUBMISSION_DOCUMENTS = 1
+        """提出本文書及び監査報告書"""
+        PDF = 2
+        """PDF形式"""
+        ATTACHED_DOCUMENTS = 3
+        """代替書面・添付文書"""
+        ENGLISH_DOCUMENTS = 4
+        """英文ファイル"""
+        @property
+        def number(self):
+            return self.value
 
     load_dotenv()
     __xbrl_download_path = os.environ.get("XBRL_DOWNLOAD_PATH")
@@ -66,8 +63,9 @@ class FetchEdient:
     @classmethod
     def fetch_docs(cls, config = DocsConfiguration()) -> list[Result]:
         docs_list: list[Result] = []
-        date_list = pd.date_range(start=config.start_date, end=config.end_date, freq="D")
-        for i ,d in enumerate(map(lambda x: x.date(), date_list)):
+        date_list = list(map(lambda x: x.date(), pd.date_range(start=config.start_date, end=config.end_date, freq="D")))
+
+        for i ,d in enumerate(tqdm(date_list)):
             # アクセス制限回避
             time.sleep(2)
             session = requests.Session()
@@ -91,7 +89,6 @@ class FetchEdient:
                     result = Result(**json_data["results"][num])
                     if cls.__should_parse_json(config, result):
                         docs_list.append(result)
-                        print(result.filerName)
             except Exception as err:
                 raise Exception(err)
         return docs_list
@@ -103,8 +100,8 @@ class FetchEdient:
         params = {"type": type.number}
         session = requests.Session()
         retries = Retry(total=2,  # リトライ回数
-                            backoff_factor=60,  # sleep時間
-                            status_forcelist=[403])
+                        backoff_factor=60,  # sleep時間
+                        status_forcelist=[403])
         session.mount("https://", HTTPAdapter(max_retries=retries))
         try:
             res = session.get(url, params=params, timeout=3.5)
@@ -121,12 +118,7 @@ class FetchEdient:
 
     @classmethod
     def download_files(self, docs_list: list[Result], type: FetchDocType):
-        for i, doc in enumerate(tqdm(docs_list)):
+        for _, doc in enumerate(tqdm(docs_list)):
+            #アクセス制限回避
+            time.sleep(1)
             self.download_file(doc.docID, type)
-
-
-
-if __name__ == "__main__":
-    ls = FetchEdient.fetch_docs()
-    print(ls)
-    FetchEdient.download_files(ls, FetchDocType.SUBMISSION_DOCUMENTS)
