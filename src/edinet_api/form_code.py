@@ -21,7 +21,7 @@ class FormCode(Enum):
         return self.value
     
     def name(self) -> str:
-        """様式番号と様式名を返すの名称を返す"""
+        """様式番号と様式名の名称を返す"""
         if self == FormCode.SECURITIES_REPORT:
             return "第三号様式	有価証券報告書"
         elif self == FormCode.AMENDED_SECURITIES_REPORT:

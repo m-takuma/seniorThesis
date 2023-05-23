@@ -63,7 +63,9 @@ class Result:
             englishDocFlag,
             csvFlag,
             legalStatus,
+            id = None
             ) -> None:
+        self.id: str | None = id
         self.seqNumber: int = seqNumber
         self.docID: str = docID
         self.edinetCode: str = edinetCode
@@ -93,3 +95,8 @@ class Result:
         self.englishDocFlag: str = englishDocFlag
         self.csvFlag: str = csvFlag
         self.legalStatus: str = legalStatus
+    
+    def to_dict(self):
+        result = self.__dict__.copy()  # create a copy of the dict
+        result.pop('id', None)  # remove 'id' from the dict
+        return result

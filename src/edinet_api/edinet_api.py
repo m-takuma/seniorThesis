@@ -10,10 +10,10 @@ from requests.adapters import HTTPAdapter
 from edinet_api.ordinance_code import OrdinanceCode
 from edinet_api.form_code import FormCode
 from edinet_api.response_model import MetaData, Result
-import os
-from dotenv import load_dotenv
 from tqdm import tqdm
 import shutil
+from db.db import db
+from db import const as db_const
 
 class edinet:
     class FetchDocsConfiguration:
@@ -46,12 +46,11 @@ class edinet:
         @property
         def number(self):
             return self.value
-
-    load_dotenv()
-    __xbrl_download_path = os.environ.get("XBRL_DOWNLOAD_PATH")
     
     @classmethod
-    def __should_parse_json(cls, config: FetchDocsConfiguration, result: Result):
+    def __should_parse_json(cls, config: FetchDocsConfiguration, result: Result | None):
+        if result is None:
+            return False
         ordinance_code_status = result.ordinanceCode == config.ordinance_code.code()
         form_code_status = result.formCode == config.form_code.code()  # noqa: E501
         corporate_name_status = (config.corporate_name == "" and result.filerName == None) or config.corporate_name in result.filerName
@@ -59,11 +58,22 @@ class edinet:
         return ordinance_code_status and form_code_status and corporate_name_status and sec_code_status
     
     @classmethod
-    def fetch_docs(cls, config = FetchDocsConfiguration()) -> list[Result]:
+    def fetch_docs(cls, config = FetchDocsConfiguration(), use_cache = False) -> list[Result]:
         docs_list: list[Result] = []
         date_list = list(map(lambda x: x.date(), pd.date_range(start=config.start_date, end=config.end_date, freq="D")))
-
+        _db = db()
         for i ,d in enumerate(tqdm(date_list)):
+            result = None
+            if use_cache:
+                cursor = _db.conn.cursor()
+                results = cursor.execute(f'SELECT * FROM {db_const.DOCS_RESULT_TABLE_NAME} WHERE DATE(submitDateTime) = DATE(:date)', {'date': d}).fetchall()
+                cursor.close()
+                if len(results) > 0:
+                    for num in range(0, len(results)):
+                        result = Result(**results[num])
+                        if cls.__should_parse_json(config, result):
+                            docs_list.append(result)
+                    continue
             # アクセス制限回避
             time.sleep(2)
             session = requests.Session()
@@ -83,12 +93,16 @@ class edinet:
                 if not metadata.is_normal_status():
                     print(F"{metadata.status}: {metadata.message}")
                     continue
+                _db.create_metadata(date=metadata.parameter.date, count=metadata.resultset.count)
                 for num in range(0, metadata.resultset.count):
                     result = Result(**json_data["results"][num])
+                    _db.create_doc_by_dict(result.to_dict())
                     if cls.__should_parse_json(config, result):
                         docs_list.append(result)
             except Exception as err:
                 raise Exception(err)
+        _db.commit()
+        del _db
         return docs_list
     
 
@@ -104,11 +118,11 @@ class edinet:
         try:
             res = session.get(url, params=params, timeout=3.5)
             res.raise_for_status()
-            filename = cls.__xbrl_download_path + docID + ".zip"
+            filename = const.XBRL_DOWNLOAD_PATH + docID + ".zip"
             with open(filename, "wb") as file:
                 for chunk in res.iter_content(chunk_size=1024):
                     file.write(chunk)
-            shutil.unpack_archive(filename, cls.__xbrl_download_path + docID)
+            shutil.unpack_archive(filename, const.XBRL_DOWNLOAD_PATH + docID)
         except Exception as err:
             if res.status_code != 404:
                 raise Exception(err)

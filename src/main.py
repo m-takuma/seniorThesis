@@ -1,15 +1,10 @@
 from db.db import db
 from edinet_api.response_model import Result
 from edinet_api.edinet_api import edinet
-def fetch_docs(should_cache = True) -> list[Result]:
+
+def fetch_docs(use_chahe = True) -> list[Result]:
     config = edinet.FetchDocsConfiguration()
-    docs = edinet.fetch_docs(config=config)
-    if should_cache:
-        __db = db()
-        for result in docs:
-            __db.create_from_dict(result.__dict__)
-        __db.commit()
-        del __db
+    docs = edinet.fetch_docs(config=config, use_cache=use_chahe)
     return docs
 
 def download_docs(docs: list[Result]):
