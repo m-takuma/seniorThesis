@@ -73,7 +73,7 @@ class edinet:
                         result = Result(**results[num])
                         if cls.__should_parse_json(config, result):
                             docs_list.append(result)
-                    continue
+                continue
             # アクセス制限回避
             time.sleep(2)
             session = requests.Session()

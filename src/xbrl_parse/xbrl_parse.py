@@ -1,1 +1,1 @@
-import arelle
+import arelle.XbrlUtil

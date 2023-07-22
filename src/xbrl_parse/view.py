@@ -6,8 +6,9 @@ from arelle.ModelInstanceObject import ModelFact
 from arelle.ModelDtsObject import ModelConcept
 from arelle.ModelInstanceObject import ModelContext
 from datetime import timedelta
-import xbrl_parse.const as const
+import const as const
 import csv
+from arelle.ModelRelationshipSet import ModelRelationshipSet
 class ViewFacts():
     class Column(Enum):
         Label = "Label"
@@ -127,8 +128,52 @@ class ViewFacts():
                             cols.append( f"{start_datetime}:{end_datetime}")
             self.addRow(cols)
 
+class ViewTable():
+    def __init__(self, model_xbrl, outfile = const.OUT_PUT_CSV) -> None:
+        self.model_xbrl: ModelXbrl = model_xbrl
+        self.csv_file = open(outfile, "w", newline="", encoding="utf-8-sig")
+        self.csv_writer = csv.writer(self.csv_file)
+        self.relationship: ModelRelationshipSet = self.model_xbrl.relationshipSet("http://www.xbrl.org/2003/arcrole/parent-child")
+    
+    def view(self):
+        uris = list(self.relationship.linkRoleUris)
+        uris = list(map(lambda x: (self.model_xbrl.roleTypeDefinition(x), x), uris))
+        uris.sort()
+
+        for _, uri in uris:
+            self.relationship: ModelRelationshipSet = self.model_xbrl.relationshipSet("http://www.xbrl.org/2003/arcrole/parent-child", linkrole=uri)
+            for root_concept in self.relationship.rootConcepts:
+                root_concept: ModelConcept
+                self.add_row([root_concept.qname, root_concept.label()])
+                self.follow_link(root_concept, 1)
+        for i, model_obj in enumerate(model_xbrl.modelObjects):
+            self.follow_link(model_obj, 1)
+    
+    def follow_link(self ,model_obj, indent=0):
+        for parent_rel_model in self.relationship.fromModelObject(model_obj):
+            parent_rel_model : ModelRelationshipSet
+            to_model_obj: ModelConcept = parent_rel_model.toModelObject
+            #parent_rel_model.fromModelObject.qname,parent_rel_model.fromModelObject.label(),
+            self.model_xbrl.contexts
+            self.add_row([to_model_obj.qname, to_model_obj.label()], indent)
+            self.follow_link(to_model_obj, indent+1)
+        
+    def add_row(self, cols: list, indent: int = 0):
+        import_cols = ([""]*indent) + cols
+        self.csv_writer.writerow(import_cols)
+
+
 if __name__ == "__main__":
     cntlr = Cntlr()
     modelmanager = ModelManager(cntlr)
     model_xbrl =  modelmanager.load(const.XBRL_TEMP_PATH)
-    ViewFacts(model_xbrl).view()
+    ViewTable(model_xbrl).view()
+    '''
+    relationships = model_xbrl.relationshipSet("XBRL-footnotes")
+    for rel in relationships.modelRelationships:
+        fact = rel.fromModelObject
+        footnote = rel.toModelObject
+        if fact is not None and footnote is not None:
+            print("Fact: ", fact.xValue if fact.isNumeric else fact.stringValue)
+            print("Footnote: ", footnote.text if hasattr(footnote, 'text') else None)
+    '''
